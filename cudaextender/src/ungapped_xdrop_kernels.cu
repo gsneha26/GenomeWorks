@@ -71,6 +71,7 @@ __global__ void find_high_scoring_segment_pairs(const int8_t* __restrict__ d_tar
     __shared__ int32_t prev_max_pos[num_warps];
     __shared__ bool edge_found[num_warps];
     __shared__ bool xdrop_found[num_warps];
+    __shared__ bool find_ssp[num_warps];
     __shared__ bool new_max_found[num_warps];
     __shared__ int32_t left_extent[num_warps];
     __shared__ int32_t extent[num_warps];
@@ -98,11 +99,27 @@ __global__ void find_high_scoring_segment_pairs(const int8_t* __restrict__ d_tar
             {
                 ref_loc[warp_id]   = d_seed_pairs[hid].target_position_in_read;
                 query_loc[warp_id] = d_seed_pairs[hid].query_position_in_read;
+                if(d_done[hid] == 0)
+                {
+                    find_ssp[warp_id] = true;
+                }
+                else
+                {
+                    find_ssp[warp_id] = false;
+                }
             }
             else
             {
                 ref_loc[warp_id]   = d_seed_pairs[hid0].target_position_in_read;
                 query_loc[warp_id] = d_seed_pairs[hid0].query_position_in_read;
+                if(d_done[hid0] == 0)
+                {
+                    find_ssp[warp_id] = true;
+                }
+                else
+                {
+                    find_ssp[warp_id] = false;
+                }
             }
             total_score[warp_id]    = 0;
             tile[warp_id]           = 0;
@@ -118,7 +135,7 @@ __global__ void find_high_scoring_segment_pairs(const int8_t* __restrict__ d_tar
         __syncwarp();
         //////////////////////////////////////////////////////////////////
         //Right extension
-        while (!xdrop_found[warp_id] && !edge_found[warp_id])
+        while (!xdrop_found[warp_id] && !edge_found[warp_id] && find_ssp[warp_id])
         {
             int32_t thread_score     = 0;
             const int32_t pos_offset = lane_id + tile[warp_id];
@@ -293,7 +310,7 @@ __global__ void find_high_scoring_segment_pairs(const int8_t* __restrict__ d_tar
         }
         __syncwarp();
 
-        while (!xdrop_found[warp_id] && !edge_found[warp_id])
+        while (!xdrop_found[warp_id] && !edge_found[warp_id] && find_ssp[warp_id])
         {
             int32_t thread_score     = 0;
             const int32_t pos_offset = lane_id + 1 + tile[warp_id];
